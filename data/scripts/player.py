@@ -47,12 +47,18 @@ class Player:
         self.bullets_speed = 30
 
         self.active_weapon = 'pistol'
+
         self.knife_delay = 30
         self.knife_attack_duration = 10
+
         self.pistol_delay = 2
         self.pistol_attack_duration = 5
+        self.pistol_recoil = .5
+
         self.rifle_delay = 10
         self.rifle_attack_duration = 5
+        self.rifle_recoil = 1
+
         self.delay_count = 0
         self.attack_count = 0
         self.can_attack = True

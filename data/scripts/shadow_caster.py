@@ -53,7 +53,7 @@ class ShadowCaster:
                 nx = corner[0] + evx * shadow_length
                 ny = corner[1] + evy * shadow_length
 
-                new_point = [nx, ny]
+                new_point = [int(nx), int(ny)]
 
                 allpoints.append(corner)
                 allpoints.append(new_point)
