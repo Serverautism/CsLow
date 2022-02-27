@@ -38,6 +38,7 @@ class Map:
         self.image = None
         self.tiles = []
         self.walls = []
+        self.inside_walls = []
         self.render_map()
 
     def draw(self, surface):
@@ -71,6 +72,8 @@ class Map:
                         if tile == '2':
                             found_h_wall = False
                             self.walls.append(Wall(h_wall))
+                            if i != 0 and i != 17:
+                                self.inside_walls.append(Wall(h_wall))
                             h_wall.clear()
 
                     if tile in ['3', '4', '5']:
@@ -88,11 +91,15 @@ class Map:
                                 if w[0] == j:
                                     w.append(tile_object)
                                     self.walls.append(Wall(w[1:], True))
+                                    if w[0] != 0 and w[0] != 31:
+                                        self.inside_walls.append(Wall(w[1:], True))
                                     v_walls.remove(w)
                                     break
 
                     if tile == '6':
                         self.walls.append(Wall([tile_object]))
+                        if i != 0 and i != 17 and j != 0 and j != 31:
+                            self.inside_walls.append(Wall([tile_object]))
 
         self.image = surface
 
