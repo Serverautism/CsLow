@@ -28,6 +28,15 @@ class Wall:
         self.rect = pygame.Rect(x, y, width, height)
         self.corners = [self.rect.topleft, self.rect.topright, self.rect.bottomright, self.rect.bottomleft]
 
+        self.image = pygame.Surface((width, height))
+        for i, tile in enumerate(self.tiles):
+            if vertical:
+                self.image.blit(tile.image, (0, i * 32))
+            else:
+                self.image.blit(tile.image, (i * 32, 0))
+
+        self.mask = pygame.mask.from_surface(self.image)
+
 
 class Map:
     def __init__(self, path):

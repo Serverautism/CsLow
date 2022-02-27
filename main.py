@@ -71,6 +71,10 @@ class Game:
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
                     self.player.attack(True)
+                elif event.button == 4:
+                    self.player.switch_weapon(-1)
+                elif event.button == 5:
+                    self.player.switch_weapon(-2)
 
         keys = pygame.key.get_pressed()
         if keys[pygame.K_a]:

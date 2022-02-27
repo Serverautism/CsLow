@@ -158,13 +158,25 @@ class Player:
             self.bullets.remove(b)
 
     def switch_weapon(self, ind: int):
-        if ind == 1:
+        index = ind
+        if index == -1:
+            if self.active_weapon == 'pistol':
+                index = 1
+            elif self.active_weapon == 'knife':
+                index = 2
+        elif index == -2:
+            if self.active_weapon == 'rifle':
+                index = 2
+            elif self.active_weapon == 'pistol':
+                index = 3
+
+        if index == 1:
             self.active_weapon = 'rifle'
             self.image = self.rifle_frames[self.frame]
-        elif ind == 2:
+        elif index == 2:
             self.active_weapon = 'pistol'
             self.image = self.pistol_frames[self.frame]
-        elif ind == 3:
+        elif index == 3:
             self.active_weapon = 'knife'
             self.image = self.knife_frames[self.frame]
 
@@ -189,7 +201,7 @@ class Player:
 
     def check_collision_x(self, center, rect):
         rect.center = center
-        for t in self.map.tiles:
+        for t in self.map.walls:
             if rect.colliderect(t.rect):
                 if rect.x > t.rect.x:
                     self.rect.left = t.rect.right
@@ -199,7 +211,7 @@ class Player:
 
     def check_collision_y(self, center, rect):
         rect.center = center
-        for t in self.map.tiles:
+        for t in self.map.walls:
             if self.rect.colliderect(t.rect):
                 if rect.y > t.rect.y:
                     self.rect.top = t.rect.bottom
