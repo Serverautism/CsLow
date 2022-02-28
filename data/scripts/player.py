@@ -55,14 +55,14 @@ class Player:
         self.knife_ammo = [self.knife_max_ammo, self.knife_max_ammo]
         self.knife_damage = 3
 
-        self.pistol_delay = 2
+        self.pistol_delay = 10
         self.pistol_attack_duration = 5
         self.pistol_recoil = .5
         self.pistol_max_ammo = 10
         self.pistol_ammo = [self.pistol_max_ammo, self.pistol_max_ammo]
         self.pistol_damage = 1
 
-        self.rifle_delay = 10
+        self.rifle_delay = 20
         self.rifle_attack_duration = 5
         self.rifle_recoil = 1
         self.rifle_max_ammo = 30

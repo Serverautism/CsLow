@@ -1,5 +1,5 @@
 import pygame
-from data.scripts import player, map, shadow_caster, hud
+from data.scripts import scene
 
 
 class Game:
@@ -21,84 +21,36 @@ class Game:
         self.render_width, self.render_height = 1024, 576
         self.render_dimensions = (self.render_width, self.render_height)
 
-        self.font = pygame.font.SysFont("Arial", 15)
+        self.font = pygame.font.Font('data/font/font.ttf', 15)
         self.screen = pygame.display.set_mode(self.screen_dimensions)
         self.clock = pygame.time.Clock()
         self.render_surface = pygame.Surface(self.render_dimensions)
 
-        self.map = map.Map('data/maps/map_1.csv')
+        self.input = []
 
-        self.player = player.Player((4 * 32, 3 * 32), self.map)
-
-        self.shadow_caster = shadow_caster.ShadowCaster(self.player, self.map, self.colors['shadows'])
-
-        self.hud = hud.Hud(self.player)
+        self.main_scene = scene.MainScene('data/maps/map_1.csv')
 
     def run(self):
         while self.running:
-            self.render_surface.fill(self.colors['background'])
             self.clock.tick(self.fps)
 
             self.handle_input()
 
-            # update
-            self.player.update()
-            self.shadow_caster.update()
-            self.hud.update()
-
-            # render
-            self.shadow_caster.render(self.render_surface)
-            self.map.draw(self.render_surface)
-            self.player.render(self.render_surface)
-            self.hud.render(self.render_surface)
+            self.main_scene.update(self.render_surface, self.input)
 
             self.render_surface.blit(self.font.render('fps: ' + str(round(self.clock.get_fps(), 2)), True, self.colors['text']), (5, 5))
-            self.render_surface.blit(self.font.render('rotation: ' + str(round(self.player.rotation, 2)), True, self.colors['text']), (80, 5))
             self.screen.blit(pygame.transform.scale(self.render_surface, self.screen_dimensions), (0, 0))
             pygame.display.update()
 
     def handle_input(self):
-        for event in pygame.event.get():
+        self.input = pygame.event.get()
+        for event in self.input:
             if event.type == pygame.QUIT:
                 self.running = False
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.running = False
-                elif event.key == pygame.K_1:
-                    self.player.switch_weapon(1)
-                elif event.key == pygame.K_2:
-                    self.player.switch_weapon(2)
-                elif event.key == pygame.K_3:
-                    self.player.switch_weapon(3)
-                elif event.key == pygame.K_r:
-                    self.player.reload()
-
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    self.player.attack(True)
-                elif event.button == 4:
-                    self.player.switch_weapon(-1)
-                elif event.button == 5:
-                    self.player.switch_weapon(-2)
-
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_a]:
-            self.player.go_left()
-        if keys[pygame.K_d]:
-            self.player.go_right()
-        if keys[pygame.K_s]:
-            self.player.go_down()
-        if keys[pygame.K_w]:
-            self.player.go_up()
-        if (keys[pygame.K_a] and keys[pygame.K_d]) or (not keys[pygame.K_a] and not keys[pygame.K_d]):
-            self.player.stop_x()
-        if (keys[pygame.K_w] and keys[pygame.K_s]) or (not keys[pygame.K_w] and not keys[pygame.K_s]):
-            self.player.stop_y()
-
-        mouse_keys = pygame.mouse.get_pressed()
-        if mouse_keys[0]:
-            self.player.attack()
 
 
 if __name__ == '__main__':
