@@ -17,11 +17,12 @@ def to_renderer_position(pos):
 
 
 class Bullet:
-    def __init__(self, direction, center, speed, map):
+    def __init__(self, direction, center, speed, damage, map):
         self.one_direction = direction
         self.direction = (direction[0] * speed, direction[1] * speed)
         self.center = center
         self.map = map
+        self.damage = damage
 
         self.dead = False
         self.collided = False

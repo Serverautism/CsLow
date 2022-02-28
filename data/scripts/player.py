@@ -23,6 +23,7 @@ class Player:
     def __init__(self, center, map):
         self.center = center
         self.map = map
+        self.spawn = center
 
         self.last_time = time.time()
         self.dt = 1
@@ -38,7 +39,7 @@ class Player:
         self.frame = 0
 
         self.image = self.pistol_frames[self.frame]
-        self.rect = self.image.get_rect()
+        self.rect = self.image.get_rect(center=self.center)
 
         self.rotation = 0
         self.rotated_image = self.image
@@ -50,23 +51,53 @@ class Player:
 
         self.knife_delay = 30
         self.knife_attack_duration = 10
+        self.knife_max_ammo = 0
+        self.knife_ammo = [self.knife_max_ammo, self.knife_max_ammo]
+        self.knife_damage = 3
 
         self.pistol_delay = 2
         self.pistol_attack_duration = 5
         self.pistol_recoil = .5
+        self.pistol_max_ammo = 10
+        self.pistol_ammo = [self.pistol_max_ammo, self.pistol_max_ammo]
+        self.pistol_damage = 1
 
         self.rifle_delay = 10
         self.rifle_attack_duration = 5
         self.rifle_recoil = 1
+        self.rifle_max_ammo = 30
+        self.rifle_ammo = [self.rifle_max_ammo, self.rifle_max_ammo]
+        self.rifle_damage = .5
 
         self.delay_count = 0
         self.attack_count = 0
         self.can_attack = True
+        self.reloading = False
+        self.reloading_duration = 120
+        self.reloading_counter = 0
+
+        self.ammo = self.pistol_ammo
+
+        self.max_hearts = 3
+        self.hearts = self.max_hearts
 
     def update(self):
         self.dt = time.time() - self.last_time
         self.dt *= 120
         self.last_time = time.time()
+
+        if self.reloading:
+            self.reloading_counter += 1
+            if self.reloading_counter == self.reloading_duration:
+                if self.active_weapon == 'pistol':
+                    self.pistol_ammo = [self.pistol_max_ammo, self.pistol_max_ammo]
+                    self.ammo = self.pistol_ammo
+                elif self.active_weapon == 'rifle':
+                    self.rifle_ammo = [self.rifle_max_ammo, self.rifle_max_ammo]
+                    self.ammo = self.rifle_ammo
+
+                self.reloading_counter = 0
+                self.reloading = False
 
         if not self.can_attack:
             self.delay_count += self.dt
@@ -121,7 +152,7 @@ class Player:
             b.render(surface)
 
     def attack(self, clicked=False):
-        if self.can_attack:
+        if self.can_attack and (self.ammo[1] != 0 or self.active_weapon == 'knife') and not self.reloading:
             if self.active_weapon != 'rifle':
                 if not clicked:
                     return
@@ -136,16 +167,20 @@ class Player:
                 center = (self.center[0] + direction[0] * 30, self.center[1] + direction[1] * 30)
 
                 if self.active_weapon == 'pistol':
-                    self.bullets.append(bullet.Bullet(direction, center, self.bullets_speed, self.map))
+                    self.bullets.append(bullet.Bullet(direction, center, self.bullets_speed, self.pistol_damage, self.map))
                 else:
-                    self.bullets.append(bullet.Bullet(direction, center, self.bullets_speed/2, self.map))
+                    self.bullets.append(bullet.Bullet(direction, center, self.bullets_speed/2, self.rifle_damage, self.map))
 
                 self.frame = 1
+                self.ammo[1] -= 1
 
             elif self.active_weapon == 'knife':
                 self.frame = 1
 
             self.can_attack = False
+
+    def reload(self):
+        self.reloading = True
 
     def update_bullets(self):
         to_remove = []
@@ -158,32 +193,36 @@ class Player:
             self.bullets.remove(b)
 
     def switch_weapon(self, ind: int):
-        index = ind
-        if index == -1:
-            if self.active_weapon == 'pistol':
-                index = 1
-            elif self.active_weapon == 'knife':
-                index = 2
-        elif index == -2:
-            if self.active_weapon == 'rifle':
-                index = 2
-            elif self.active_weapon == 'pistol':
-                index = 3
+        if not self.reloading and self.can_attack:
+            index = ind
+            if index == -1:
+                if self.active_weapon == 'pistol':
+                    index = 1
+                elif self.active_weapon == 'knife':
+                    index = 2
+            elif index == -2:
+                if self.active_weapon == 'rifle':
+                    index = 2
+                elif self.active_weapon == 'pistol':
+                    index = 3
 
-        if index == 1:
-            self.active_weapon = 'rifle'
-            self.image = self.rifle_frames[self.frame]
-        elif index == 2:
-            self.active_weapon = 'pistol'
-            self.image = self.pistol_frames[self.frame]
-        elif index == 3:
-            self.active_weapon = 'knife'
-            self.image = self.knife_frames[self.frame]
+            if index == 1:
+                self.active_weapon = 'rifle'
+                self.image = self.rifle_frames[self.frame]
+                self.ammo = self.rifle_ammo
+            elif index == 2:
+                self.active_weapon = 'pistol'
+                self.image = self.pistol_frames[self.frame]
+                self.ammo = self.pistol_ammo
+            elif index == 3:
+                self.active_weapon = 'knife'
+                self.image = self.knife_frames[self.frame]
+                self.ammo = self.knife_ammo
 
-        self.delay_count = 0
-        self.attack_count = 0
-        self.frame = 0
-        self.can_attack = True
+            self.delay_count = 0
+            self.attack_count = 0
+            self.frame = 0
+            self.can_attack = True
 
     def update_image(self):
         if self.active_weapon == 'knife':

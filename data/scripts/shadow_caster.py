@@ -28,7 +28,7 @@ class ShadowCaster:
         self.render_surface = pygame.Surface((self.render_width, self.render_height))
         self.render_surface.set_colorkey(self.colors['black'])
 
-        self.last_player_center = (int(self.player.center[0]), int(self.player.center[1]))
+        self.last_player_center = (0, 0)
 
     def update(self, debug=False):
         if (int(self.player.center[0]), int(self.player.center[1])) != self.last_player_center:

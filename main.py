@@ -1,5 +1,5 @@
 import pygame
-from data.scripts import player, map, shadow_caster
+from data.scripts import player, map, shadow_caster, hud
 
 
 class Game:
@@ -28,9 +28,11 @@ class Game:
 
         self.map = map.Map('data/maps/map_1.csv')
 
-        self.player = player.Player((512, 288), self.map)
+        self.player = player.Player((4 * 32, 3 * 32), self.map)
 
         self.shadow_caster = shadow_caster.ShadowCaster(self.player, self.map, self.colors['shadows'])
+
+        self.hud = hud.Hud(self.player)
 
     def run(self):
         while self.running:
@@ -42,11 +44,13 @@ class Game:
             # update
             self.player.update()
             self.shadow_caster.update()
+            self.hud.update()
 
             # render
             self.shadow_caster.render(self.render_surface)
             self.map.draw(self.render_surface)
             self.player.render(self.render_surface)
+            self.hud.render(self.render_surface)
 
             self.render_surface.blit(self.font.render('fps: ' + str(round(self.clock.get_fps(), 2)), True, self.colors['text']), (5, 5))
             self.render_surface.blit(self.font.render('rotation: ' + str(round(self.player.rotation, 2)), True, self.colors['text']), (80, 5))
@@ -67,6 +71,8 @@ class Game:
                     self.player.switch_weapon(2)
                 elif event.key == pygame.K_3:
                     self.player.switch_weapon(3)
+                elif event.key == pygame.K_r:
+                    self.player.reload()
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:
