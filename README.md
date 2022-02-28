@@ -2,6 +2,6 @@
 pygame top down shooter
 
 # dependencies
-pygame
-scipy
+pygame,
+scipy,
 shapely
