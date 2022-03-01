@@ -180,7 +180,8 @@ class Player:
             self.can_attack = False
 
     def reload(self):
-        self.reloading = True
+        if self.active_weapon != 'knife':
+            self.reloading = True
 
     def update_bullets(self):
         to_remove = []

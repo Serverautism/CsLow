@@ -9,6 +9,7 @@ class Hud:
         self.last_weapon = self.player.active_weapon
         self.last_ammo = self.player.ammo.copy()
         self.last_hearts = self.player.hearts
+        self.last_reload = 0
 
         self.font = pygame.font.Font('data/font/font.ttf', 10)
 
@@ -35,6 +36,14 @@ class Hud:
             pygame.image.load('data/sprites/icons/rifle.png').convert_alpha()
         ]
 
+        self.reload_images = [
+            pygame.image.load('data/sprites/icons/reload_1.png').convert_alpha(),
+            pygame.image.load('data/sprites/icons/reload_2.png').convert_alpha(),
+            pygame.image.load('data/sprites/icons/reload_3.png').convert_alpha(),
+            pygame.image.load('data/sprites/icons/reload_4.png').convert_alpha(),
+            pygame.image.load('data/sprites/icons/reload_5.png').convert_alpha()
+        ]
+
         self.border_20x20 = pygame.image.load('data/sprites/icons/border_20x20.png').convert_alpha()
         self.border_36x20 = pygame.image.load('data/sprites/icons/border_36x20.png').convert_alpha()
 
@@ -47,9 +56,13 @@ class Hud:
         self.weapons_render = pygame.Surface((self.border_36x20.get_width(), (self.border_36x20.get_height() + 5) * len(self.weapon_images)))
         self.weapons_render.set_colorkey(self.colors['black'])
 
+        self.reload_render = pygame.Surface((self.reload_images[0].get_width(), self.reload_images[0].get_height()))
+        self.reload_render.set_colorkey(self.colors['black'])
+
         self.render_hearts()
         self.render_bullets()
         self.render_weapons()
+        self.render_reload(self.last_reload)
 
     def update(self):
         if self.player.active_weapon != self.last_weapon:
@@ -64,12 +77,24 @@ class Hud:
             self.last_hearts = self.player.hearts
             self.render_hearts()
 
+        if self.player.reloading:
+            progress = self.player.reloading_counter / self.player.reloading_duration
+            if progress > self.last_reload:
+                self.render_reload(progress)
+                self.last_reload = progress
+        elif self.last_reload != 0:
+            self.last_reload = 0
+            self.render_reload(self.last_reload)
+
     def render(self, surface: pygame.Surface):
         surface.blit(self.heart_render, (36, 36))
 
         surface.blit(self.bullets_render, (1024 - self.bullets_render.get_width() - 36, 576 - self.bullets_render.get_height() - 36))
 
         surface.blit(self.weapons_render, (1024 - self.weapons_render.get_width() - 36, 36))
+
+        if self.player.reloading:
+            surface.blit(self.reload_render, (1024 - self.reload_render.get_width() - 36, 576 - self.bullets_render.get_height() - 36 - 10 - self.reload_render.get_height()))
 
     def render_hearts(self):
         self.heart_render.fill(self.colors['black'])
@@ -130,6 +155,19 @@ class Hud:
         self.weapons_render.blit(self.border_20x20, (32, self.border_36x20.get_height() * 2 + 5 * 2))
         self.weapons_render.blit(self.weapon_images[0], (4 + 32, self.border_36x20.get_height() * 2 + 5 * 2 + 4))
 
+    def render_reload(self, progress):
+        self.reload_render.fill(self.colors['black'])
+
+        if progress < .25:
+            self.reload_render.blit(self.reload_images[0], (0, 0))
+        elif progress < .5:
+            self.reload_render.blit(self.reload_images[1], (0, 0))
+        elif progress < .75:
+            self.reload_render.blit(self.reload_images[2], (0, 0))
+        elif progress < 1:
+            self.reload_render.blit(self.reload_images[3], (0, 0))
+        else:
+            self.reload_render.blit(self.reload_images[4], (0, 0))
 
 
 
