@@ -1,4 +1,5 @@
 import pygame
+import time
 from . import player
 
 
@@ -10,6 +11,12 @@ class Hud:
         self.last_ammo = self.player.ammo.copy()
         self.last_hearts = self.player.hearts
         self.last_reload = 0
+
+        self.full_reload_duration = 60
+        self.full_reload_count = 0
+
+        self.last_time = time.time()
+        self.dt = 1
 
         self.font = pygame.font.Font('data/font/font.ttf', 10)
 
@@ -65,6 +72,10 @@ class Hud:
         self.render_reload(self.last_reload)
 
     def update(self):
+        self.dt = time.time() - self.last_time
+        self.dt *= 120
+        self.last_time = time.time()
+
         if self.player.active_weapon != self.last_weapon:
             self.last_weapon = self.player.active_weapon
             self.render_weapons()
@@ -84,6 +95,11 @@ class Hud:
                 self.last_reload = progress
         elif self.last_reload != 0:
             self.last_reload = 0
+            self.render_reload(1)
+            self.full_reload_count = self.full_reload_duration
+        elif self.full_reload_count > 0:
+            self.full_reload_count -= self.dt
+        else:
             self.render_reload(self.last_reload)
 
     def render(self, surface: pygame.Surface):
@@ -93,7 +109,7 @@ class Hud:
 
         surface.blit(self.weapons_render, (1024 - self.weapons_render.get_width() - 36, 36))
 
-        if self.player.reloading:
+        if self.player.reloading or self.full_reload_count > 0:
             surface.blit(self.reload_render, (1024 - self.reload_render.get_width() - 36, 576 - self.bullets_render.get_height() - 36 - 10 - self.reload_render.get_height()))
 
     def render_hearts(self):
@@ -168,8 +184,3 @@ class Hud:
             self.reload_render.blit(self.reload_images[3], (0, 0))
         else:
             self.reload_render.blit(self.reload_images[4], (0, 0))
-
-
-
-
-
