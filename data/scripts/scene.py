@@ -73,6 +73,8 @@ class MainScene(Scene):
         self.player.render(self.render_surface)
         self.hud.render(self.render_surface)
 
+        self.render_surface.blit(self.font.render('rotation: ' + str(round(self.player.rotation, 2)), True, self.colors['text']), (85, 5))
+
         surface.blit(self.render_surface, (0, 0))
 
     def handle_input(self, input):

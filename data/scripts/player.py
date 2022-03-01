@@ -73,7 +73,7 @@ class Player:
         self.attack_count = 0
         self.can_attack = True
         self.reloading = False
-        self.reloading_duration = 120
+        self.reloading_duration = 100
         self.reloading_counter = 0
 
         self.ammo = self.pistol_ammo
