@@ -28,7 +28,13 @@ class Game:
 
         self.input = []
 
-        self.main_scene = scene.MainScene('data/maps/map_1.csv')
+        mode = int(input('Mode: '))
+        if mode == 1:
+            self.main_scene = scene.HostScreen('data/maps/map_1.csv')
+            self.active_scene = self.main_scene
+        else:
+            self.main_scene = scene.ClientScreen()
+            self.active_scene = self.main_scene
 
     def run(self):
         while self.running:
@@ -46,10 +52,12 @@ class Game:
         self.input = pygame.event.get()
         for event in self.input:
             if event.type == pygame.QUIT:
+                self.active_scene.stop()
                 self.running = False
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
+                    self.active_scene.stop()
                     self.running = False
 
 

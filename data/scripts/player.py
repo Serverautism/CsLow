@@ -19,6 +19,75 @@ def to_renderer_position(pos):
     return new_x, new_y
 
 
+class RemotePlayer:
+    def __init__(self, map):
+        self.map = map
+        self.center = (4 * 32, 3 * 32)
+        self.rotation = 0
+        self.active_weapon = 'pistol'
+
+        self.knife_frames = load_animation('data/sprites/animations/knife_', 2)
+        self.pistol_frames = load_animation('data/sprites/animations2/pistol_', 2)
+        self.rifle_frames = load_animation('data/sprites/animations2/rifle_', 2)
+
+        self.image = self.pistol_frames[0]
+        self.rect = self.image.get_rect(center=self.center)
+        self.rotated_image = self.image
+        self.mask = pygame.mask.from_surface(self.image)
+
+        self.frame = 0
+
+        self.bullets = []
+
+    def update(self):
+        self.rotated_image = pygame.transform.rotate(self.image, self.rotation)
+        self.rect = self.rotated_image.get_rect(center=self.center)
+        self.mask = pygame.mask.from_surface(self.rotated_image)
+
+        self.update_bullets()
+
+    def render(self, surface: pygame.Surface):
+        surface.blit(self.rotated_image, self.rect)
+
+        for b in self.bullets:
+            b.render(surface)
+
+    def set_rotation(self, angle):
+        self.rotation = angle
+
+    def set_center(self, center):
+        self.center = center
+        self.rect.center = center
+
+    def set_image(self, weapon=None, frame=None):
+        if weapon is not None:
+            self.active_weapon = weapon
+
+        if frame is not None:
+            self.frame = frame
+
+        if self.active_weapon == 'knife':
+            self.image = self.knife_frames[self.frame]
+        elif self.active_weapon == 'pistol':
+            self.image = self.pistol_frames[self.frame]
+        elif self.active_weapon == 'rifle':
+            self.image = self.rifle_frames[self.frame]
+
+    def update_bullets(self):
+        to_remove = []
+        for b in self.bullets:
+            threading.Thread(target=b.update).start()
+            if b.dead:
+                to_remove.append(b)
+
+        for b in to_remove:
+            self.bullets.remove(b)
+
+    def add_bullet(self, direction, center, speed, damage):
+        b = bullet.Bullet(direction, center, speed, damage, self.map)
+        self.bullets.append(b)
+
+
 class Player:
     def __init__(self, center, map):
         self.center = center

@@ -1,5 +1,6 @@
-import pygame
+import pygame, threading, json, random, time
 from . import player, map, shadow_caster, hud
+from socket import AF_INET, socket, SOCK_STREAM
 
 
 class MainScene:
@@ -95,8 +96,172 @@ class HostScreen(MainScene):
     def __init__(self, path):
         MainScene.__init__(self, path)
 
+        self.map_path = path
+        self.message_splitter = ''.join(chr(random.randint(33, 126)) for _ in range(10))
+
+        self.clients = {}
+        self.addresses = {}
+        self.player_dictionary = {}
+        self.player_list = []
+
+        self.ip = ''
+        self.port = 33000
+        self.buffer_size = 1024
+        self.address = (self.ip, self.port)
+
+        self.server = socket(AF_INET, SOCK_STREAM)
+        self.server.bind(self.address)
+
+        self.server.listen()
+
+        self.accept_thread = threading.Thread(target=self.accept_new_connections)
+        self.accept_thread.start()
+
+    def update(self, surface, input):
+        self.render_surface.fill(self.colors['background'])
+
+        self.handle_input(input)
+
+        # update
+        self.player.update()
+
+        for p in self.player_list:
+            p.update()
+
+        self.shadow_caster.update()
+        self.hud.update()
+
+        # render
+        for p in self.player_list:
+            p.render(self.render_surface)
+
+        self.shadow_caster.render(self.render_surface)
+        self.map.draw(self.render_surface)
+        self.player.render(self.render_surface)
+        self.hud.render(self.render_surface)
+
+        self.render_surface.blit(self.font.render('rotation: ' + str(round(self.player.rotation, 2)), True, self.colors['text']), (85, 5))
+
+        surface.blit(self.render_surface, (0, 0))
+
+    def accept_new_connections(self):
+        while True:
+            try:
+                client, client_address = self.server.accept()
+                print(f'{client_address[0]}:{client_address[1]} has connected')
+                self.addresses[client] = client_address
+                threading.Thread(target=self.handle_client, args=(client,)).start()
+            except OSError:
+                break
+
+    def handle_client(self, client):
+        client_index = len(self.player_list)
+        new_player = player.RemotePlayer(self.map)
+        self.player_list.append(new_player)
+        self.player_dictionary[client] = new_player
+
+        info = {
+            'map': self.map_path,
+            'message_splitter': self.message_splitter
+        }
+        info = json.dumps(info)
+        client.send(bytes(info, 'utf8'))
+
+        name = client.recv(self.buffer_size).decode("utf8")
+        self.clients[client] = name
+
+        while True:
+            msg = client.recv(self.buffer_size)
+            decoded_message = msg.decode('utf8')
+            dict = decoded_message.split(self.message_splitter)[0]
+            if msg != bytes("{quit}", "utf8"):
+                client_info = json.loads(dict)
+                new_player.set_center(client_info['center'])
+                new_player.set_rotation(client_info['rotation'])
+            else:
+                client.send(bytes("{quit}", "utf8"))
+                client.close()
+                del self.clients[client]
+                break
+
+    def build_message(self, message: dict):
+        return json.dumps(message) + self.message_splitter
+
+    def broadcast(self, message: str):  # prefix is for name identification.
+        for sock in self.clients:
+            message_bytes = bytes(message, 'utf8')
+            sock.send(message_bytes)
+
+    def stop(self):
+        for sock in self.clients:
+            sock.close()
+        self.server.close()
+
 
 class ClientScreen(MainScene):
-    def __init__(self, serverinfo):
-        path = 'connect to server and get path'
+    def __init__(self, server_info=('127.0.0.1', 33000)):
+        self.ip = server_info[0]
+        self.port = server_info[1]
+
+        self.buffer_size = 1024
+        self.address = (self.ip, self.port)
+
+        self.client_socket = socket(AF_INET, SOCK_STREAM)
+        self.client_socket.connect(self.address)
+
+        info = self.client_socket.recv(self.buffer_size).decode("utf8")
+        info = json.loads(info)
+
+        path = info['map']
+        self.message_splitter = info['message_splitter']
+
+        receive_thread = threading.Thread(target=self.receive)
+        receive_thread.start()
+
         MainScene.__init__(self, path)
+
+    def update(self, surface, input):
+        self.render_surface.fill(self.colors['background'])
+
+        self.handle_input(input)
+
+        # update
+        self.player.update()
+        self.shadow_caster.update()
+        self.hud.update()
+
+        self.send_info()
+
+        # render
+        self.shadow_caster.render(self.render_surface)
+        self.map.draw(self.render_surface)
+        self.player.render(self.render_surface)
+        self.hud.render(self.render_surface)
+
+        self.render_surface.blit(self.font.render('rotation: ' + str(round(self.player.rotation, 2)), True, self.colors['text']), (85, 5))
+
+        surface.blit(self.render_surface, (0, 0))
+
+    def receive(self):
+        while True:
+            try:
+                msg = self.client_socket.recv(self.buffer_size).decode("utf8")
+                # handle message
+            except OSError:  # Possibly client has left the chat.
+                break
+
+    def send(self, message):  # event is passed by binders.
+        self.client_socket.send(bytes(message, "utf8"))
+        if message == "{quit}":
+            self.client_socket.close()
+
+    def send_info(self):
+        info = {
+            'center': self.player.center,
+            'rotation': self.player.rotation
+        }
+        self.send(self.build_message(info))
+
+    def build_message(self, message: dict):
+        msg = json.dumps(message) + self.message_splitter
+        return msg
