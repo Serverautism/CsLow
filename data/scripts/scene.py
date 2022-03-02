@@ -2,38 +2,8 @@ import pygame
 from . import player, map, shadow_caster, hud
 
 
-class Scene:
-    def update(self, surface, input):
-        print('there was no overwrite for update')
-
-    def handle_input(self, input):
-        print('there was no overwrite for input')
-
-
-class MainMenuScene(Scene):
-    def __init__(self):
-        Scene.__init__(self)
-
-        self.colors = {
-            'background': (125, 112, 113),
-            'text': (223, 246, 245),
-            'shadows': (48, 44, 46)
-        }
-
-        self.screen_width, self.screen_height = 1920, 1080
-        self.screen_dimensions = (self.screen_width, self.screen_height)
-
-        self.render_width, self.render_height = 1024, 576
-        self.render_dimensions = (self.render_width, self.render_height)
-
-        self.font = pygame.font.Font('data/font/font.ttf', 15)
-        self.render_surface = pygame.Surface(self.render_dimensions)
-
-
-class MainScene(Scene):
+class MainScene:
     def __init__(self, map_path):
-        Scene.__init__(self)
-
         self.colors = {
             'background': (125, 112, 113),
             'text': (223, 246, 245),
@@ -119,3 +89,14 @@ class MainScene(Scene):
         mouse_keys = pygame.mouse.get_pressed()
         if mouse_keys[0]:
             self.player.attack()
+
+
+class HostScreen(MainScene):
+    def __init__(self, path):
+        MainScene.__init__(self, path)
+
+
+class ClientScreen(MainScene):
+    def __init__(self, serverinfo):
+        path = 'connect to server and get path'
+        MainScene.__init__(self, path)
