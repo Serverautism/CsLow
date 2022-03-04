@@ -15,7 +15,7 @@ class Game:
             'shadows': (48, 44, 46)
         }
 
-        self.screen_width, self.screen_height = 1920, 1080
+        self.screen_width, self.screen_height = 1024, 576
         self.screen_dimensions = (self.screen_width, self.screen_height)
 
         self.render_width, self.render_height = 1024, 576
@@ -30,11 +30,15 @@ class Game:
 
         mode = int(input('Mode: '))
         if mode == 1:
-            self.main_scene = scene.HostScreen('data/maps/map_1.csv')
+            self.main_scene = scene.HostScene('data/maps/map_1.csv')
             self.active_scene = self.main_scene
+            pygame.display.set_caption('CsLow: Host')
         else:
-            self.main_scene = scene.ClientScreen()
+            ip = input('IP: ')
+            port = int(input('Port: '))
+            self.main_scene = scene.ClientScene((ip, port))
             self.active_scene = self.main_scene
+            pygame.display.set_caption('CsLow: Client')
 
     def run(self):
         while self.running:

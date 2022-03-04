@@ -14,8 +14,8 @@ def load_animation(path, length):
 
 
 def to_renderer_position(pos):
-    new_x = (1024 * pos[0]) / 1920
-    new_y = (576 * pos[1]) / 1080
+    new_x = (1024 * pos[0]) / 1024
+    new_y = (576 * pos[1]) / 576
     return new_x, new_y
 
 
@@ -38,6 +38,7 @@ class RemotePlayer:
         self.frame = 0
 
         self.bullets = []
+        self.new_bullets = []
 
     def update(self):
         self.rotated_image = pygame.transform.rotate(self.image, self.rotation)
@@ -83,9 +84,20 @@ class RemotePlayer:
         for b in to_remove:
             self.bullets.remove(b)
 
-    def add_bullet(self, direction, center, speed, damage):
+    def add_bullet(self, direction, center, speed, damage, new=False):
         b = bullet.Bullet(direction, center, speed, damage, self.map)
         self.bullets.append(b)
+
+        if new:
+            self.new_bullets.append([direction, center, speed, damage])
+
+    def get_new_bullets(self):
+        if len(self.new_bullets) > 0:
+            copy = self.new_bullets[:]
+            self.new_bullets.clear()
+            return copy
+        else:
+            return []
 
 
 class Player:
@@ -114,6 +126,7 @@ class Player:
         self.rotated_image = self.image
 
         self.bullets = []
+        self.new_bullets = []
         self.bullets_speed = 30
 
         self.active_weapon = 'pistol'
@@ -237,8 +250,10 @@ class Player:
 
                 if self.active_weapon == 'pistol':
                     self.bullets.append(bullet.Bullet(direction, center, self.bullets_speed, self.pistol_damage, self.map))
+                    self.new_bullets.append([direction, center, self.bullets_speed, self.pistol_damage])
                 else:
                     self.bullets.append(bullet.Bullet(direction, center, self.bullets_speed/2, self.rifle_damage, self.map))
+                    self.new_bullets.append([direction, center, self.bullets_speed/2, self.rifle_damage])
 
                 self.frame = 1
                 self.ammo[1] -= 1
@@ -247,6 +262,14 @@ class Player:
                 self.frame = 1
 
             self.can_attack = False
+
+    def get_new_bullets(self):
+        if len(self.new_bullets) > 0:
+            copy = self.new_bullets[:]
+            self.new_bullets.clear()
+            return copy
+        else:
+            return []
 
     def reload(self):
         if self.active_weapon != 'knife':

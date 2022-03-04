@@ -11,7 +11,7 @@ class MainScene:
             'shadows': (48, 44, 46)
         }
 
-        self.screen_width, self.screen_height = 1920, 1080
+        self.screen_width, self.screen_height = 1024, 576
         self.screen_dimensions = (self.screen_width, self.screen_height)
 
         self.render_width, self.render_height = 1024, 576
@@ -92,7 +92,7 @@ class MainScene:
             self.player.attack()
 
 
-class HostScreen(MainScene):
+class HostScene(MainScene):
     def __init__(self, path):
         MainScene.__init__(self, path)
 
@@ -131,6 +131,11 @@ class HostScreen(MainScene):
         self.shadow_caster.update()
         self.hud.update()
 
+        info = {
+            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame, self.player.get_new_bullets()]] + [[p.center, p.rotation, p.active_weapon, p.frame, p.get_new_bullets()] for p in self.player_list]
+        }
+        self.broadcast(self.build_message(info))
+
         # render
         for p in self.player_list:
             p.render(self.render_surface)
@@ -156,14 +161,18 @@ class HostScreen(MainScene):
 
     def handle_client(self, client):
         client_index = len(self.player_list)
+        client_index_whole_list = client_index + 1
         new_player = player.RemotePlayer(self.map)
         self.player_list.append(new_player)
         self.player_dictionary[client] = new_player
 
         info = {
             'map': self.map_path,
-            'message_splitter': self.message_splitter
+            'message_splitter': self.message_splitter,
+            'own_index': client_index_whole_list,
+            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame]] + [[p.center, p.rotation, p.active_weapon, p.frame] for p in self.player_list]
         }
+
         info = json.dumps(info)
         client.send(bytes(info, 'utf8'))
 
@@ -178,6 +187,9 @@ class HostScreen(MainScene):
                 client_info = json.loads(dict)
                 new_player.set_center(client_info['center'])
                 new_player.set_rotation(client_info['rotation'])
+                new_player.set_image(client_info['weapon'], client_info['frame'])
+                for bullet in client_info['bullets']:
+                    new_player.add_bullet(*bullet, True)
             else:
                 client.send(bytes("{quit}", "utf8"))
                 client.close()
@@ -188,8 +200,8 @@ class HostScreen(MainScene):
         return json.dumps(message) + self.message_splitter
 
     def broadcast(self, message: str):  # prefix is for name identification.
+        message_bytes = bytes(message, 'utf8')
         for sock in self.clients:
-            message_bytes = bytes(message, 'utf8')
             sock.send(message_bytes)
 
     def stop(self):
@@ -198,7 +210,7 @@ class HostScreen(MainScene):
         self.server.close()
 
 
-class ClientScreen(MainScene):
+class ClientScene(MainScene):
     def __init__(self, server_info=('127.0.0.1', 33000)):
         self.ip = server_info[0]
         self.port = server_info[1]
@@ -214,11 +226,23 @@ class ClientScreen(MainScene):
 
         path = info['map']
         self.message_splitter = info['message_splitter']
+        self.own_index = info['own_index']
 
         receive_thread = threading.Thread(target=self.receive)
         receive_thread.start()
 
         MainScene.__init__(self, path)
+
+        self.player_list = []
+        for i, p in enumerate(info['players']):
+            if i != self.own_index:
+                new_player = player.RemotePlayer(self.map)
+                new_player.set_center(p[0])
+                new_player.set_rotation(p[1])
+                new_player.set_image(p[2], p[3])
+                self.player_list.append(new_player)
+            else:
+                self.player_list.append(None)
 
     def update(self, surface, input):
         self.render_surface.fill(self.colors['background'])
@@ -227,12 +251,21 @@ class ClientScreen(MainScene):
 
         # update
         self.player.update()
+
+        for i, p in enumerate(self.player_list):
+            if i != self.own_index:
+                p.update()
+
         self.shadow_caster.update()
         self.hud.update()
 
         self.send_info()
 
         # render
+        for i, p in enumerate(self.player_list):
+            if i != self.own_index:
+                p.render(self.render_surface)
+
         self.shadow_caster.render(self.render_surface)
         self.map.draw(self.render_surface)
         self.player.render(self.render_surface)
@@ -245,23 +278,50 @@ class ClientScreen(MainScene):
     def receive(self):
         while True:
             try:
-                msg = self.client_socket.recv(self.buffer_size).decode("utf8")
-                # handle message
-            except OSError:  # Possibly client has left the chat.
+                msg = self.client_socket.recv(self.buffer_size)
+                decoded_message = msg.decode('utf8')
+                dict = decoded_message.split(self.message_splitter)[0]
+                if msg != bytes("{quit}", "utf8"):
+                    info_from_server = json.loads(dict)
+
+                    # update players
+                    players = info_from_server['players']
+                    for i, p in enumerate(players):
+                        if i >= len(self.player_list):
+                            new_player = player.RemotePlayer(self.map)
+                            new_player.set_center(p[0])
+                            new_player.set_rotation(p[1])
+                            new_player.set_image(p[2], p[3])
+                            for b in p[4]:
+                                new_player.add_bullet(*b)
+                            self.player_list.append(new_player)
+                        elif i != self.own_index:
+                            self.player_list[i].set_center(p[0])
+                            self.player_list[i].set_rotation(p[1])
+                            self.player_list[i].set_image(p[2], p[3])
+                            for b in p[4]:
+                                self.player_list[i].add_bullet(*b)
+
+            except OSError:
                 break
 
-    def send(self, message):  # event is passed by binders.
+    def send(self, message):
         self.client_socket.send(bytes(message, "utf8"))
-        if message == "{quit}":
-            self.client_socket.close()
 
     def send_info(self):
         info = {
             'center': self.player.center,
-            'rotation': self.player.rotation
+            'rotation': self.player.rotation,
+            'weapon': self.player.active_weapon,
+            'frame': self.player.frame,
+            'bullets': self.player.get_new_bullets()
         }
         self.send(self.build_message(info))
 
     def build_message(self, message: dict):
         msg = json.dumps(message) + self.message_splitter
         return msg
+
+    def stop(self):
+        self.send('{quit}')
+        self.client_socket.close()
