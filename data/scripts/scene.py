@@ -180,21 +180,25 @@ class HostScene(MainScene):
         self.clients[client] = name
 
         while True:
-            msg = client.recv(self.buffer_size)
-            decoded_message = msg.decode('utf8')
-            dict = decoded_message.split(self.message_splitter)[0]
-            if msg != bytes("{quit}", "utf8"):
-                client_info = json.loads(dict)
-                new_player.set_center(client_info['center'])
-                new_player.set_rotation(client_info['rotation'])
-                new_player.set_image(client_info['weapon'], client_info['frame'])
-                for bullet in client_info['bullets']:
-                    new_player.add_bullet(*bullet, True)
-            else:
-                client.send(bytes("{quit}", "utf8"))
-                client.close()
-                del self.clients[client]
-                break
+            try:
+                msg = client.recv(self.buffer_size)
+                decoded_message = msg.decode('utf8')
+                dict = decoded_message.split(self.message_splitter)[0]
+                if msg != bytes("{quit}", "utf8"):
+                    client_info = json.loads(dict)
+                    new_player.set_center(client_info['center'])
+                    new_player.set_rotation(client_info['rotation'])
+                    new_player.set_image(client_info['weapon'], client_info['frame'])
+                    for bullet in client_info['bullets']:
+                        new_player.add_bullet(*bullet, True)
+                else:
+                    client.send(bytes("{quit}", "utf8"))
+                    client.close()
+                    del self.clients[client]
+                    break
+            except json.JSONDecodeError as e:
+                print(f'Error receiving data from {self.addresses[client]}:')
+                print(e)
 
     def build_message(self, message: dict):
         return json.dumps(message) + self.message_splitter
@@ -301,6 +305,9 @@ class ClientScene(MainScene):
                             self.player_list[i].set_image(p[2], p[3])
                             for b in p[4]:
                                 self.player_list[i].add_bullet(*b)
+            except json.JSONDecodeError as e:
+                print('Error receiving data from server:')
+                print(e)
 
             except OSError:
                 break
