@@ -182,9 +182,9 @@ class HostScene(MainScene):
         while True:
             try:
                 msg = client.recv(self.buffer_size)
-                decoded_message = msg.decode('utf8')
-                dict = decoded_message.split(self.message_splitter)[0]
                 if msg != bytes("{quit}", "utf8"):
+                    decoded_message = msg.decode('utf8')
+                    dict = decoded_message.split(self.message_splitter)[0]
                     client_info = json.loads(dict)
                     new_player.set_center(client_info['center'])
                     new_player.set_rotation(client_info['rotation'])
@@ -192,13 +192,21 @@ class HostScene(MainScene):
                     for bullet in client_info['bullets']:
                         new_player.add_bullet(*bullet, True)
                 else:
-                    client.send(bytes("{quit}", "utf8"))
                     client.close()
                     del self.clients[client]
+                    disconnection_info = {'disconnect': client_index_whole_list}
+                    self.broadcast(self.build_message(disconnection_info))
+                    print(f'{self.addresses[client]} disconnected')
                     break
             except json.JSONDecodeError as e:
                 print(f'Error receiving data from {self.addresses[client]}:')
                 print(e)
+
+            except OSError as e:
+                print('connection failed')
+                print(e)
+                # remove client
+                break
 
     def build_message(self, message: dict):
         return json.dumps(message) + self.message_splitter
@@ -224,6 +232,8 @@ class ClientScene(MainScene):
 
         self.client_socket = socket(AF_INET, SOCK_STREAM)
         self.client_socket.connect(self.address)
+
+        self.connected = True
 
         info = self.client_socket.recv(self.buffer_size).decode("utf8")
         info = json.loads(info)
@@ -280,7 +290,7 @@ class ClientScene(MainScene):
         surface.blit(self.render_surface, (0, 0))
 
     def receive(self):
-        while True:
+        while self.connected:
             try:
                 msg = self.client_socket.recv(self.buffer_size)
                 decoded_message = msg.decode('utf8')
@@ -289,41 +299,52 @@ class ClientScene(MainScene):
                     info_from_server = json.loads(dict)
 
                     # update players
-                    players = info_from_server['players']
-                    for i, p in enumerate(players):
-                        if i >= len(self.player_list):
-                            new_player = player.RemotePlayer(self.map)
-                            new_player.set_center(p[0])
-                            new_player.set_rotation(p[1])
-                            new_player.set_image(p[2], p[3])
-                            for b in p[4]:
-                                new_player.add_bullet(*b)
-                            self.player_list.append(new_player)
-                        elif i != self.own_index:
-                            self.player_list[i].set_center(p[0])
-                            self.player_list[i].set_rotation(p[1])
-                            self.player_list[i].set_image(p[2], p[3])
-                            for b in p[4]:
-                                self.player_list[i].add_bullet(*b)
+                    if 'players' in info_from_server:
+                        players = info_from_server['players']
+                        for i, p in enumerate(players):
+                            if i >= len(self.player_list):
+                                new_player = player.RemotePlayer(self.map)
+                                new_player.set_center(p[0])
+                                new_player.set_rotation(p[1])
+                                new_player.set_image(p[2], p[3])
+                                for b in p[4]:
+                                    new_player.add_bullet(*b)
+                                self.player_list.append(new_player)
+                            elif i != self.own_index:
+                                self.player_list[i].set_center(p[0])
+                                self.player_list[i].set_rotation(p[1])
+                                self.player_list[i].set_image(p[2], p[3])
+                                for b in p[4]:
+                                    self.player_list[i].add_bullet(*b)
+
+                    # remove a player
+                    if 'disconnect' in info_from_server:
+                        index = info_from_server['disconnect']
+                        self.player_list.pop(index)
+                        if index < self.own_index:
+                            self.own_index -= 1
+
             except json.JSONDecodeError as e:
                 print('Error receiving data from server:')
                 print(e)
 
             except OSError:
+                print('connection failed')
                 break
 
     def send(self, message):
         self.client_socket.send(bytes(message, "utf8"))
 
     def send_info(self):
-        info = {
-            'center': self.player.center,
-            'rotation': self.player.rotation,
-            'weapon': self.player.active_weapon,
-            'frame': self.player.frame,
-            'bullets': self.player.get_new_bullets()
-        }
-        self.send(self.build_message(info))
+        if self.connected:
+            info = {
+                'center': self.player.center,
+                'rotation': self.player.rotation,
+                'weapon': self.player.active_weapon,
+                'frame': self.player.frame,
+                'bullets': self.player.get_new_bullets()
+            }
+            self.send(self.build_message(info))
 
     def build_message(self, message: dict):
         msg = json.dumps(message) + self.message_splitter
@@ -332,3 +353,4 @@ class ClientScene(MainScene):
     def stop(self):
         self.send('{quit}')
         self.client_socket.close()
+        self.connected = False
