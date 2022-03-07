@@ -186,26 +186,41 @@ class HostScene(MainScene):
                     decoded_message = msg.decode('utf8')
                     dict = decoded_message.split(self.message_splitter)[0]
                     client_info = json.loads(dict)
-                    new_player.set_center(client_info['center'])
-                    new_player.set_rotation(client_info['rotation'])
-                    new_player.set_image(client_info['weapon'], client_info['frame'])
-                    for bullet in client_info['bullets']:
-                        new_player.add_bullet(*bullet, True)
+
+                    if 'player' in client_info:
+                        new_player.set_center(client_info['player']['center'])
+                        new_player.set_rotation(client_info['player']['rotation'])
+                        new_player.set_image(client_info['player']['weapon'], client_info['player']['frame'])
+                        for bullet in client_info['player']['bullets']:
+                            new_player.add_bullet(*bullet, True)
+
+                    if 'index' in client_info:
+                        client_index_whole_list = client_info['index']
+                        client_index = client_index_whole_list - 1
+
                 else:
+                    self.player_list.pop(client_index)
                     client.close()
                     del self.clients[client]
                     disconnection_info = {'disconnect': client_index_whole_list}
                     self.broadcast(self.build_message(disconnection_info))
                     print(f'{self.addresses[client]} disconnected')
                     break
+
             except json.JSONDecodeError as e:
                 print(f'Error receiving data from {self.addresses[client]}:')
-                print(e)
+                #print(e)
+                pass
 
             except OSError as e:
                 print('connection failed')
-                print(e)
-                # remove client
+                #print(e)
+                self.player_list.pop(client_index)
+                client.close()
+                del self.clients[client]
+                disconnection_info = {'disconnect': client_index_whole_list}
+                self.broadcast(self.build_message(disconnection_info))
+                print(f'{self.addresses[client]} lost connection')
                 break
 
     def build_message(self, message: dict):
@@ -323,10 +338,13 @@ class ClientScene(MainScene):
                         self.player_list.pop(index)
                         if index < self.own_index:
                             self.own_index -= 1
+                            index_info = {'index': self.own_index}
+                            self.send(self.build_message(index_info))
 
             except json.JSONDecodeError as e:
                 print('Error receiving data from server:')
-                print(e)
+                #print(e)
+                pass
 
             except OSError:
                 print('connection failed')
@@ -338,11 +356,13 @@ class ClientScene(MainScene):
     def send_info(self):
         if self.connected:
             info = {
-                'center': self.player.center,
-                'rotation': self.player.rotation,
-                'weapon': self.player.active_weapon,
-                'frame': self.player.frame,
-                'bullets': self.player.get_new_bullets()
+                'player': {
+                    'center': self.player.center,
+                    'rotation': self.player.rotation,
+                    'weapon': self.player.active_weapon,
+                    'frame': self.player.frame,
+                    'bullets': self.player.get_new_bullets()
+                }
             }
             self.send(self.build_message(info))
 
