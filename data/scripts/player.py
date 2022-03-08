@@ -25,6 +25,7 @@ class RemotePlayer:
         self.center = (4 * 32, 3 * 32)
         self.rotation = 0
         self.active_weapon = 'pistol'
+        self.hearts = 3
 
         self.knife_frames = load_animation('data/sprites/animations/knife_', 2)
         self.pistol_frames = load_animation('data/sprites/animations2/pistol_', 2)
@@ -77,7 +78,7 @@ class RemotePlayer:
     def update_bullets(self):
         to_remove = []
         for b in self.bullets:
-            threading.Thread(target=b.update).start()
+            b.update()
             if b.dead:
                 to_remove.append(b)
 
@@ -121,6 +122,7 @@ class Player:
 
         self.image = self.pistol_frames[self.frame]
         self.rect = self.image.get_rect(center=self.center)
+        self.mask = pygame.mask.from_surface(self.image)
 
         self.rotation = 0
         self.rotated_image = self.image
@@ -163,7 +165,9 @@ class Player:
         self.max_hearts = 3
         self.hearts = self.max_hearts
 
-    def update(self):
+        self.damage_taken = []
+
+    def update(self, enemies=None):
         self.dt = time.time() - self.last_time
         self.dt *= 120
         self.last_time = time.time()
@@ -221,9 +225,13 @@ class Player:
 
         self.rotated_image = pygame.transform.rotate(self.image, self.rotation)
         self.rect = self.rotated_image.get_rect(center=self.center)
+        self.mask = pygame.mask.from_surface(self.rotated_image)
 
         self.check_collision_x((self.center[0], old_rect.center[1]), pygame.Rect(self.rect.x, old_rect.y, self.rect.width, old_rect.height))
         self.check_collision_y(self.center, self.rect)
+
+        if enemies:
+            self.check_enemy_bullets(enemies)
 
         self.update_bullets()
 
@@ -232,6 +240,16 @@ class Player:
 
         for b in self.bullets:
             b.render(surface)
+
+    def check_enemy_bullets(self, enemies):
+        for i, enemy in enumerate(enemies):
+            if enemy:
+                for j, bullet in enumerate(enemy.bullets):
+                    if bullet.damage != 0:
+                        if pygame.sprite.collide_mask(self, bullet):
+                            self.damage_taken.append([i, j, bullet.damage])
+                            # self.hearts -= bullet.damage
+                            bullet.damage = 0
 
     def attack(self, clicked=False):
         if self.can_attack and (self.ammo[1] != 0 or self.active_weapon == 'knife') and not self.reloading:
@@ -350,6 +368,13 @@ class Player:
                 else:
                     self.rect.bottom = t.rect.top
                 self.center = self.rect.center
+
+    def get_damage_taken(self, index: int):
+        for damage in self.damage_taken:
+            damage.append(index)
+        copy = self.damage_taken[:]
+        self.damage_taken.clear()
+        return copy
 
     def go_up(self):
         self.dy = -self.speed

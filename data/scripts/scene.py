@@ -123,10 +123,20 @@ class HostScene(MainScene):
         self.handle_input(input)
 
         # update
-        self.player.update()
+        self.player.update(self.player_list)
 
         for p in self.player_list:
             p.update()
+
+        if len(self.player.damage_taken) > 0:
+            damage_taken = self.player.get_damage_taken(0)
+            for one_damage in damage_taken:
+                enemy, bullet, damage, victim = one_damage
+                self.player.hearts -= damage
+                self.player_list[enemy].bullets.pop(bullet)
+                one_damage[0] += 1
+
+            self.broadcast(self.build_message({'damage': damage_taken}))
 
         self.shadow_caster.update()
         self.hud.update()
@@ -197,6 +207,18 @@ class HostScene(MainScene):
                     if 'index' in client_info:
                         client_index_whole_list = client_info['index']
                         client_index = client_index_whole_list - 1
+
+                    if 'damage' in client_info:
+                        self.broadcast(dict)
+
+                        for one_damage in client_info['damage']:
+                            enemy, bullet, damage, victim = one_damage
+                            if enemy == 0:
+                                self.player.bullets.pop(bullet)
+                            else:
+                                self.player_list[enemy - 1].bullets.pop(bullet)
+
+                            new_player.hearts -= damage
 
                 else:
                     self.player_list.pop(client_index)
@@ -279,11 +301,14 @@ class ClientScene(MainScene):
         self.handle_input(input)
 
         # update
-        self.player.update()
+        self.player.update(self.player_list)
 
         for i, p in enumerate(self.player_list):
             if i != self.own_index:
                 p.update()
+
+        if len(self.player.damage_taken) > 0:
+            self.send(self.build_message({'damage': self.player.get_damage_taken(self.own_index)}))
 
         self.shadow_caster.update()
         self.hud.update()
@@ -303,6 +328,10 @@ class ClientScene(MainScene):
         self.render_surface.blit(self.font.render('rotation: ' + str(round(self.player.rotation, 2)), True, self.colors['text']), (85, 5))
 
         surface.blit(self.render_surface, (0, 0))
+
+        if self.player.hearts <= 0:
+            self.stop()
+            quit()
 
     def receive(self):
         while self.connected:
@@ -340,6 +369,20 @@ class ClientScene(MainScene):
                             self.own_index -= 1
                             index_info = {'index': self.own_index}
                             self.send(self.build_message(index_info))
+
+                    # handle hit
+                    if 'damage' in info_from_server:
+                        for one_damage in info_from_server['damage']:
+                            enemy, bullet, damage, victim = one_damage
+                            if enemy == self.own_index:
+                                self.player.bullets.pop(bullet)
+                            else:
+                                self.player_list[enemy].bullets.pop(bullet)
+
+                            if victim == self.own_index:
+                                self.player.hearts -= damage
+                            else:
+                                self.player_list[victim].hearts -= damage
 
             except json.JSONDecodeError as e:
                 print('Error receiving data from server:')

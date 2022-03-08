@@ -37,7 +37,7 @@ class Game:
             ip = input('IP: ')
             port = int(input('Port: '))
             self.main_scene = scene.ClientScene((ip, port))
-            #self.main_scene = scene.ClientScene()
+            # self.main_scene = scene.ClientScene()
             self.active_scene = self.main_scene
             pygame.display.set_caption('CsLow: Client')
 
