@@ -1,5 +1,5 @@
 import pygame, threading, json, random, time
-from . import player, map, shadow_caster, hud
+from . import player, map, shadow_caster, hud, menu
 from socket import AF_INET, socket, SOCK_STREAM
 
 
@@ -10,6 +10,8 @@ class MainScene:
             'text': (223, 246, 245),
             'shadows': (48, 44, 46)
         }
+
+        self.next_scene = None
 
         self.screen_width, self.screen_height = 1024, 576
         self.screen_dimensions = (self.screen_width, self.screen_height)
@@ -93,7 +95,7 @@ class MainScene:
 
 
 class HostScene(MainScene):
-    def __init__(self, path):
+    def __init__(self, port: int, path):
         MainScene.__init__(self, path)
 
         self.map_path = path
@@ -105,7 +107,7 @@ class HostScene(MainScene):
         self.player_list = []
 
         self.ip = ''
-        self.port = 33000
+        self.port = port
         self.buffer_size = 1024
         self.address = (self.ip, self.port)
 
@@ -165,6 +167,7 @@ class HostScene(MainScene):
                 client, client_address = self.server.accept()
                 print(f'{client_address[0]}:{client_address[1]} has connected')
                 self.addresses[client] = client_address
+
                 threading.Thread(target=self.handle_client, args=(client,)).start()
             except OSError:
                 break
@@ -172,9 +175,6 @@ class HostScene(MainScene):
     def handle_client(self, client):
         client_index = len(self.player_list)
         client_index_whole_list = client_index + 1
-        new_player = player.RemotePlayer(self.map)
-        self.player_list.append(new_player)
-        self.player_dictionary[client] = new_player
 
         info = {
             'map': self.map_path,
@@ -186,8 +186,17 @@ class HostScene(MainScene):
         info = json.dumps(info)
         client.send(bytes(info, 'utf8'))
 
-        name = client.recv(self.buffer_size).decode("utf8")
-        self.clients[client] = name
+        client_session_info = client.recv(self.buffer_size).decode('utf8')
+        if client_session_info == 'ping':
+            print(f'got ping request from {self.addresses[client]}')
+            del self.addresses[client]
+            return
+
+        new_player = player.RemotePlayer(self.map)
+        self.player_list.append(new_player)
+        self.player_dictionary[client] = new_player
+
+        self.clients[client] = client
 
         while True:
             try:
@@ -250,8 +259,17 @@ class HostScene(MainScene):
 
     def broadcast(self, message: str):  # prefix is for name identification.
         message_bytes = bytes(message, 'utf8')
-        for sock in self.clients:
-            sock.send(message_bytes)
+        try:
+            for sock in self.clients:
+                sock.send(message_bytes)
+
+        except OSError as e:
+            print('error broadcasting to one client')
+            print(e)
+
+        except RuntimeError as e:
+            print('deleted client while broadcasting')
+            print(e)
 
     def stop(self):
         for sock in self.clients:
@@ -417,3 +435,138 @@ class ClientScene(MainScene):
         self.send('{quit}')
         self.client_socket.close()
         self.connected = False
+
+
+class MenuScene:
+    def __init__(self, menu):
+        self.colors = {
+            'background': (125, 112, 113),
+            'text': (223, 246, 245),
+            'shadows': (48, 44, 46)
+        }
+
+        self.screen_width, self.screen_height = 1024, 576
+        self.screen_dimensions = (self.screen_width, self.screen_height)
+
+        self.render_width, self.render_height = 1024, 576
+        self.render_dimensions = (self.render_width, self.render_height)
+
+        self.font = pygame.font.Font('data/font/font.ttf', 15)
+        self.render_surface = pygame.Surface(self.render_dimensions)
+
+        self.menu = menu
+
+        self.next_scene = None
+
+
+class MainMenuScene(MenuScene):
+    def __init__(self):
+        self.input_image = pygame.image.load('data/sprites/icons/menu_input.png')
+        self.host_image = pygame.image.load('data/sprites/icons/menu_button_host.png')
+        self.join_image = pygame.image.load('data/sprites/icons/menu_button_join.png')
+        self.settings_image = pygame.image.load('data/sprites/icons/menu_button_settings.png')
+
+        self.menu_content = [
+            menu.Button('host', self.host_image.get_rect(), image=self.host_image),
+            menu.Button('join', self.join_image.get_rect(), image=self.join_image),
+            menu.Button('settings', self.settings_image.get_rect(), image=self.settings_image)
+        ]
+
+        self.host_clicked = 0
+        self.join_clicked = 0
+
+        self.menu = menu.Menu('center', (100, 50), 'MAIN MENU', self.menu_content)
+
+        MenuScene.__init__(self, self.menu)
+
+    def update(self, surface, input):
+        self.render_surface.fill(self.colors['background'])
+
+        self.handle_input(input)
+
+        # update
+        self.menu.update(input)
+
+        self.handle_menu_actions()
+
+        # render stuff
+        self.menu.render(self.render_surface)
+
+        surface.blit(self.render_surface, (0, 0))
+
+    def handle_menu_actions(self):
+        if self.menu.get_pressed('join'):
+            if self.join_clicked == 1:
+                threading.Thread(target=self.test_join).start()
+            else:
+                if self.host_clicked == 0:
+                    self.menu.add_content(menu.Input('ip', self.input_image.get_rect(), image=self.input_image), 1)
+                    self.menu.add_content(menu.Input('port', self.input_image.get_rect(), image=self.input_image), 2)
+                else:
+                    self.menu.add_content(menu.Input('ip', self.input_image.get_rect(), image=self.input_image), 2)
+                    self.menu.add_content(menu.Input('port', self.input_image.get_rect(), image=self.input_image), 3)
+
+            self.join_clicked += 1
+
+        elif self.menu.get_pressed('host'):
+            print(self.host_clicked)
+            if self.host_clicked == 1:
+                self.host_clicked += 1
+                threading.Thread(target=self.test_host).start()
+            else:
+                self.host_clicked += 1
+                self.menu.add_content(menu.Input('host port', self.input_image.get_rect(), image=self.input_image), 0)
+
+    def test_host(self):
+        try:
+            test_address = ('', int(self.menu.get_text('host port')))
+            test_server = socket(AF_INET, SOCK_STREAM)
+            test_server.bind(test_address)
+            test_server.listen()
+            test_server.close()
+
+        except ValueError as e:
+            print('host port not an int')
+            # print(e)
+            self.host_clicked = 1
+
+        except OSError as e:
+            print('port not valid')
+            # print(e)
+            self.host_clicked = 1
+
+        else:
+            print('creating new session')
+            self.next_scene = HostScene(int(self.menu.get_text('host port')), 'data/maps/map_1.csv')
+
+    def test_join(self):
+        try:
+            test_address = (self.menu.get_text('ip'), int(self.menu.get_text('port')))
+            test_socket = socket(AF_INET, SOCK_STREAM)
+            test_socket.connect(test_address)
+            session_info = test_socket.recv(1024)
+            test_socket.send(bytes('ping', "utf8"))
+            test_socket.close()
+
+        except ValueError as e:
+            print('port not an int')
+            # print(e)
+            self.join_clicked = 1
+
+        except OSError as e:
+            print('not a valid game session?')
+            # print(e)
+            self.join_clicked = 1
+
+        else:
+            print('found game session')
+            self.next_scene = ClientScene(test_address)
+
+    def handle_input(self, input):
+        for event in input:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pass
+
+    def stop(self):
+        pass

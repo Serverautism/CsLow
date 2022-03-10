@@ -28,18 +28,20 @@ class Game:
 
         self.input = []
 
-        mode = int(input('Mode: '))
-        if mode == 1:
+        '''mode = input('Mode: ')
+        if mode == '1':
             self.main_scene = scene.HostScene('data/maps/map_1.csv')
             self.active_scene = self.main_scene
-            pygame.display.set_caption('CsLow: Host')
-        else:
+        elif mode == '2':
             ip = input('IP: ')
             port = int(input('Port: '))
             self.main_scene = scene.ClientScene((ip, port))
             # self.main_scene = scene.ClientScene()
             self.active_scene = self.main_scene
-            pygame.display.set_caption('CsLow: Client')
+        elif mode == '3':
+            self.active_scene = scene.MainMenuScene()'''
+
+        self.active_scene = scene.MainMenuScene()
 
     def run(self):
         while self.running:
@@ -47,11 +49,20 @@ class Game:
 
             self.handle_input()
 
-            self.main_scene.update(self.render_surface, self.input)
+            self.active_scene.update(self.render_surface, self.input)
 
             self.render_surface.blit(self.font.render('fps: ' + str(round(self.clock.get_fps(), 2)), True, self.colors['text']), (5, 5))
             self.screen.blit(pygame.transform.scale(self.render_surface, self.screen_dimensions), (0, 0))
             pygame.display.update()
+
+            if self.active_scene.next_scene:
+                self.active_scene = self.active_scene.next_scene
+                if isinstance(self.active_scene, scene.MainMenuScene):
+                    pygame.display.set_caption('CsLow: MainMenu')
+                elif isinstance(self.active_scene, scene.ClientScene):
+                    pygame.display.set_caption('CsLow: Client')
+                elif isinstance(self.active_scene, scene.HostScene):
+                    pygame.display.set_caption('CsLow: Host')
 
     def handle_input(self):
         self.input = pygame.event.get()
