@@ -95,8 +95,12 @@ class MainScene:
 
 
 class HostScene(MainScene):
-    def __init__(self, port: int, path):
+    def __init__(self, port: int, path, name, teams, own_team):
         MainScene.__init__(self, path)
+
+        self.name = name
+        self.teams = teams
+        self.own_team = own_team
 
         self.map_path = path
         self.message_splitter = ''.join(chr(random.randint(33, 126)) for _ in range(10))
@@ -177,6 +181,9 @@ class HostScene(MainScene):
         client_index_whole_list = client_index + 1
 
         info = {
+            'name': self.name,
+            'teams': self.teams,
+            'names': [n for n in self.clients.values()],
             'map': self.map_path,
             'message_splitter': self.message_splitter,
             'own_index': client_index_whole_list,
@@ -190,13 +197,16 @@ class HostScene(MainScene):
         if client_session_info == 'ping':
             print(f'got ping request from {self.addresses[client]}')
             del self.addresses[client]
+            client.close()
             return
+
+        client_session_info = json.loads(client_session_info)
 
         new_player = player.RemotePlayer(self.map)
         self.player_list.append(new_player)
         self.player_dictionary[client] = new_player
 
-        self.clients[client] = client
+        self.clients[client] = client_session_info['name']
 
         while True:
             try:
@@ -278,9 +288,17 @@ class HostScene(MainScene):
 
 
 class ClientScene(MainScene):
-    def __init__(self, server_info=('127.0.0.1', 33000)):
+    def __init__(self, server_info=('127.0.0.1', 33000), client_info=None):
         self.ip = server_info[0]
         self.port = server_info[1]
+
+        if client_info is None:
+            self.client_info = {
+                'name': 'name',
+                'team': 'team'
+            }
+        else:
+            self.client_info = client_info
 
         self.buffer_size = 1024
         self.address = (self.ip, self.port)
@@ -475,6 +493,9 @@ class MainMenuScene(MenuScene):
         self.host_clicked = 0
         self.join_clicked = 0
 
+        self.host_port_error = False
+        self.host_connect_error = False
+
         self.menu = menu.Menu('center', (100, 50), 'MAIN MENU', self.menu_content)
 
         MenuScene.__init__(self, self.menu)
@@ -509,7 +530,6 @@ class MainMenuScene(MenuScene):
             self.join_clicked += 1
 
         elif self.menu.get_pressed('host'):
-            print(self.host_clicked)
             if self.host_clicked == 1:
                 self.host_clicked += 1
                 threading.Thread(target=self.test_host).start()
@@ -530,21 +550,37 @@ class MainMenuScene(MenuScene):
             # print(e)
             self.host_clicked = 1
 
+            if self.host_connect_error:
+                self.menu.remove_content('host connect warning')
+                self.host_connect_error = False
+
+            if not self.host_port_error:
+                self.menu.add_content(menu.Text('host port warning', 'seems like the port is not a number', (169, 59, 59)))
+                self.host_port_error = True
+
         except OSError as e:
             print('port not valid')
             # print(e)
             self.host_clicked = 1
 
+            if self.host_port_error:
+                self.menu.remove_content('host port warning')
+                self.host_port_error = False
+
+            if not self.host_connect_error:
+                self.menu.add_content(menu.Text('host connect warning', 'seems like the port is already taken', (169, 59, 59)))
+                self.host_connect_error = True
+
         else:
             print('creating new session')
-            self.next_scene = HostScene(int(self.menu.get_text('host port')), 'data/maps/map_1.csv')
+            self.next_scene = CreateHostScene(int(self.menu.get_text('host port')))
 
     def test_join(self):
         try:
             test_address = (self.menu.get_text('ip'), int(self.menu.get_text('port')))
             test_socket = socket(AF_INET, SOCK_STREAM)
             test_socket.connect(test_address)
-            session_info = test_socket.recv(1024)
+            session_info = json.loads(test_socket.recv(1024).decode('utf8'))
             test_socket.send(bytes('ping', "utf8"))
             test_socket.close()
 
@@ -560,7 +596,180 @@ class MainMenuScene(MenuScene):
 
         else:
             print('found game session')
-            self.next_scene = ClientScene(test_address)
+            self.next_scene = CreateJoinScene(test_address, session_info)
+
+    def handle_input(self, input):
+        for event in input:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pass
+
+    def stop(self):
+        pass
+
+
+class CreateHostScene(MenuScene):
+    def __init__(self, port):
+        self.port = port
+
+        self.input_image = pygame.image.load('data/sprites/icons/menu_input.png')
+        self.host_image = pygame.image.load('data/sprites/icons/menu_button_host.png')
+
+        self.menu_content = [
+            menu.Input('your player name', self.input_image.get_rect(), image=self.input_image),
+            menu.Input('team name 1, team name 2', self.input_image.get_rect(), image=self.input_image),
+            menu.Input('team you want to join', self.input_image.get_rect(), image=self.input_image),
+            menu.Button('host', self.host_image.get_rect(), image=self.host_image)
+        ]
+
+        self.name_empty = False
+        self.name_long = False
+        self.teams_less = False
+        self.teams_many = False
+        self.team_not_in_teams = False
+        self.team_same = False
+        self.team_empty = False
+
+        self.menu = menu.Menu('center', (100, 50), 'host new game ', self.menu_content)
+
+        MenuScene.__init__(self, self.menu)
+
+    def update(self, surface, input):
+        self.render_surface.fill(self.colors['background'])
+
+        self.handle_input(input)
+
+        # update
+        self.menu.update(input)
+
+        self.handle_menu_actions()
+
+        # render stuff
+        self.menu.render(self.render_surface)
+
+        surface.blit(self.render_surface, (0, 0))
+
+    def handle_menu_actions(self):
+        if self.menu.get_pressed('host'):
+            name = self.menu.get_text('your player name').strip()
+            teams = [t.strip() for t in self.menu.get_text('team name 1, team name 2').split(',')]
+            own_team = self.menu.get_text('team you want to join').strip()
+
+            print(teams)
+
+            # name is empty or to long
+            if name == '':
+                if not self.name_empty:
+                    self.menu.add_content(menu.Text('name empty', 'please enter you player name', (169, 59, 59)))
+                    self.name_empty = True
+            elif self.name_empty:
+                self.menu.remove_content('name empty')
+                self.name_empty = False
+
+            if len(name) > 15:
+                if not self.name_long:
+                    self.menu.add_content(menu.Text('name long', 'your player name is to long (max: 15)', (169, 59, 59)))
+                    self.name_long = True
+            elif self.name_long:
+                self.menu.remove_content('name long')
+                self.name_long = False
+
+            # not enough or to many teams etc.
+            if len(teams) < 2:
+                if not self.teams_less:
+                    self.menu.add_content(menu.Text('teams less', 'please enter a least 2 teams', (169, 59, 59)))
+                    self.teams_less = True
+            elif self.teams_less:
+                self.menu.remove_content('teams less')
+                self.teams_less = False
+
+            if len(teams) > 4:
+                if not self.teams_many:
+                    self.menu.add_content(menu.Text('teams many', 'please don´t enter more than 4 teams', (169, 59, 59)))
+                    self.teams_many = True
+            elif self.teams_many:
+                self.menu.remove_content('teams many')
+                self.teams_many = False
+
+            if len(teams) != len(set(teams)):
+                if not self.team_same:
+                    self.menu.add_content(menu.Text('teams same', 'the teams should not have same names', (169, 59, 59)))
+                    self.team_same = True
+            elif self.team_same:
+                self.menu.remove_content('teams same')
+                self.team_same = False
+
+            if '' in teams:
+                if not self.team_empty:
+                    self.menu.add_content(menu.Text('team empty', 'empty team names are not allowed', (169, 59, 59)))
+                    self.team_empty = True
+            elif self.team_empty:
+                self.menu.remove_content('team empty')
+                self.team_empty = False
+
+            # own team not in list
+            if own_team not in teams:
+                if not self.team_not_in_teams:
+                    self.menu.add_content(menu.Text('team not in teams', 'the team you try to join does not exist', (169, 59, 59)))
+                    self.team_not_in_teams = True
+            elif self.team_not_in_teams:
+                self.menu.remove_content('team not in teams')
+                self.team_not_in_teams = False
+
+            # if everything is fine
+            if not any([self.name_empty, self.name_long, self.teams_less, self.teams_many, self.team_not_in_teams, self.team_same]):
+                self.next_scene = HostScene(self.port, 'data/maps/map_1.csv', name, teams, own_team)
+
+    def handle_input(self, input):
+        for event in input:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    pass
+
+    def stop(self):
+        pass
+
+
+class CreateJoinScene(MenuScene):
+    def __init__(self, address, session_info):
+        self.address = address
+        self.session_info = session_info
+
+        host_name = session_info['name']
+        teams_string = 'teams: '.join([t + ', ' for t in session_info['teams']])[:-2]
+
+        self.input_image = pygame.image.load('data/sprites/icons/menu_input.png')
+        self.join_image = pygame.image.load('data/sprites/icons/menu_button_join.png')
+
+        self.menu_content = [
+            menu.Input('your player name', self.input_image.get_rect(), image=self.input_image),
+            menu.Text('teams', teams_string, (223, 246, 245)),
+            menu.Input('team you want to join', self.input_image.get_rect(), image=self.input_image),
+            menu.Button('join', self.join_image.get_rect(), image=self.join_image)
+        ]
+
+        self.menu = menu.Menu('center', (100, 50), f'join {host_name}´s game', self.menu_content)
+
+        MenuScene.__init__(self, self.menu)
+
+    def update(self, surface, input):
+        self.render_surface.fill(self.colors['background'])
+
+        self.handle_input(input)
+
+        # update
+        self.menu.update(input)
+
+        self.handle_menu_actions()
+
+        # render stuff
+        self.menu.render(self.render_surface)
+
+        surface.blit(self.render_surface, (0, 0))
+
+    def handle_menu_actions(self):
+        if self.menu.get_pressed('join'):
+            pass
 
     def handle_input(self, input):
         for event in input:

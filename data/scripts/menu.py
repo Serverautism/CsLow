@@ -112,6 +112,35 @@ class Input:
         return self.text
 
 
+class Text:
+    def __init__(self, title, text, color: tuple):
+        self.title = title
+        self.text = text
+
+        self.colors = {
+            'black': (0, 0, 0),
+            'text_preset': (223, 246, 245),
+            'background': (125, 112, 113),
+            'text': color
+        }
+
+        self.font = pygame.font.Font('data/font/font.ttf', 20)
+
+        self.text_render = self.font.render(self.text, True, self.colors['text'], self.colors['background'])
+        self.rect = self.text_render.get_rect()
+
+        self.render_surface = pygame.Surface((self.rect.width, self.rect.height))
+        self.render_surface.set_colorkey(self.colors['black'])
+
+        self.render_surface.blit(self.text_render, (0, 0))
+
+    def update(self, mouse_press=None):
+        pass
+
+    def render(self, surface):
+        surface.blit(self.render_surface, self.rect)
+
+
 class Menu:
     def __init__(self, alignment=None, position=(0, 0), title='', content=None):
         self.title = title
@@ -121,13 +150,14 @@ class Menu:
 
         self.colors = {
             'black': (0, 0, 0),
+            'background': (125, 112, 113),
             'text': (223, 246, 245)
         }
 
         self.content_space = 15
         self.font = pygame.font.Font('data/font/font.ttf', 20)
         self.title_font = pygame.font.Font('data/font/font.ttf', 30)
-        self.title_render = self.title_font.render(self.title, True, self.colors['text'])
+        self.title_render = self.title_font.render(self.title, True, self.colors['text'], self.colors['background'])
 
         self.width = self.title_render.get_width()
         self.height = self.title_render.get_height() + self.content_space
@@ -223,6 +253,16 @@ class Menu:
             self.content.append(content)
         else:
             self.content.insert(index, content)
+
+        self.width = self.title_render.get_width()
+        self.height = self.title_render.get_height() + self.content_space
+        self.pre_render()
+
+    def remove_content(self, title):
+        for c in self.content:
+            if c.title == title:
+                self.content.remove(c)
+                break
 
         self.width = self.title_render.get_width()
         self.height = self.title_render.get_height() + self.content_space
