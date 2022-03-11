@@ -20,8 +20,9 @@ def to_renderer_position(pos):
 
 
 class RemotePlayer:
-    def __init__(self, map):
+    def __init__(self, map, team):
         self.map = map
+        self.team = team
         self.center = (4 * 32, 3 * 32)
         self.rotation = 0
         self.active_weapon = 'pistol'
@@ -102,9 +103,10 @@ class RemotePlayer:
 
 
 class Player:
-    def __init__(self, center, map):
+    def __init__(self, center, map, team):
         self.center = center
         self.map = map
+        self.team = team
         self.spawn = center
 
         self.last_time = time.time()
@@ -247,9 +249,13 @@ class Player:
                 for j, bullet in enumerate(enemy.bullets):
                     if bullet.damage != 0:
                         if pygame.sprite.collide_mask(self, bullet):
-                            self.damage_taken.append([i, j, bullet.damage])
-                            # self.hearts -= bullet.damage
-                            bullet.damage = 0
+                            if enemy.team != self.team:
+                                self.damage_taken.append([i, j, bullet.damage])
+                                # self.hearts -= bullet.damage
+                                bullet.damage = 0
+                            else:
+                                bullet.damage = 0
+                                self.damage_taken.append([i, j, bullet.damage])
 
     def attack(self, clicked=False):
         if self.can_attack and (self.ammo[1] != 0 or self.active_weapon == 'knife') and not self.reloading:

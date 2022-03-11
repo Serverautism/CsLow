@@ -4,7 +4,7 @@ from socket import AF_INET, socket, SOCK_STREAM
 
 
 class MainScene:
-    def __init__(self, map_path):
+    def __init__(self, map_path, team):
         self.colors = {
             'background': (125, 112, 113),
             'text': (223, 246, 245),
@@ -24,7 +24,7 @@ class MainScene:
 
         self.map = map.Map(map_path)
 
-        self.player = player.Player((4 * 32, 3 * 32), self.map)
+        self.player = player.Player((4 * 32, 3 * 32), self.map, team)
 
         self.shadow_caster = shadow_caster.ShadowCaster(self.player, self.map, self.colors['shadows'])
 
@@ -96,7 +96,7 @@ class MainScene:
 
 class HostScene(MainScene):
     def __init__(self, port: int, path, name, teams, own_team):
-        MainScene.__init__(self, path)
+        MainScene.__init__(self, path, own_team)
 
         self.name = name
         self.teams = teams
@@ -148,7 +148,7 @@ class HostScene(MainScene):
         self.hud.update()
 
         info = {
-            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame, self.player.get_new_bullets()]] + [[p.center, p.rotation, p.active_weapon, p.frame, p.get_new_bullets()] for p in self.player_list]
+            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame, self.player.get_new_bullets(), self.player.team]] + [[p.center, p.rotation, p.active_weapon, p.frame, p.get_new_bullets(), p.team] for p in self.player_list]
         }
         self.broadcast(self.build_message(info))
 
@@ -187,7 +187,7 @@ class HostScene(MainScene):
             'map': self.map_path,
             'message_splitter': self.message_splitter,
             'own_index': client_index_whole_list,
-            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame]] + [[p.center, p.rotation, p.active_weapon, p.frame] for p in self.player_list]
+            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame, self.player.team]] + [[p.center, p.rotation, p.active_weapon, p.frame, p.team] for p in self.player_list]
         }
 
         info = json.dumps(info)
@@ -200,9 +200,9 @@ class HostScene(MainScene):
             client.close()
             return
 
-        client_session_info = json.loads(client_session_info)
+        client_session_info = json.loads(client_session_info.split(self.message_splitter)[0])
 
-        new_player = player.RemotePlayer(self.map)
+        new_player = player.RemotePlayer(self.map, client_session_info['team'])
         self.player_list.append(new_player)
         self.player_dictionary[client] = new_player
 
@@ -318,18 +318,20 @@ class ClientScene(MainScene):
         receive_thread = threading.Thread(target=self.receive)
         receive_thread.start()
 
-        MainScene.__init__(self, path)
+        MainScene.__init__(self, path, client_info['team'])
 
         self.player_list = []
         for i, p in enumerate(info['players']):
             if i != self.own_index:
-                new_player = player.RemotePlayer(self.map)
+                new_player = player.RemotePlayer(self.map, p[4])
                 new_player.set_center(p[0])
                 new_player.set_rotation(p[1])
                 new_player.set_image(p[2], p[3])
                 self.player_list.append(new_player)
             else:
                 self.player_list.append(None)
+
+        self.send(self.build_message(self.client_info))
 
     def update(self, surface, input):
         self.render_surface.fill(self.colors['background'])
@@ -383,7 +385,7 @@ class ClientScene(MainScene):
                         players = info_from_server['players']
                         for i, p in enumerate(players):
                             if i >= len(self.player_list):
-                                new_player = player.RemotePlayer(self.map)
+                                new_player = player.RemotePlayer(self.map, p[5])
                                 new_player.set_center(p[0])
                                 new_player.set_rotation(p[1])
                                 new_player.set_image(p[2], p[3])
@@ -736,7 +738,7 @@ class CreateJoinScene(MenuScene):
         self.session_info = session_info
 
         host_name = session_info['name']
-        teams_string = 'teams: '.join([t + ', ' for t in session_info['teams']])[:-2]
+        teams_string = 'teams: ' + ''.join([t + ', ' for t in session_info['teams']])[:-2]
 
         self.input_image = pygame.image.load('data/sprites/icons/menu_input.png')
         self.join_image = pygame.image.load('data/sprites/icons/menu_button_join.png')
@@ -749,6 +751,12 @@ class CreateJoinScene(MenuScene):
         ]
 
         self.menu = menu.Menu('center', (100, 50), f'join {host_name}´s game', self.menu_content)
+
+        self.name_empty = False
+        self.name_long = False
+        self.name_taken = False
+        self.team_empty = False
+        self.team_not_in_teams = False
 
         MenuScene.__init__(self, self.menu)
 
@@ -769,7 +777,57 @@ class CreateJoinScene(MenuScene):
 
     def handle_menu_actions(self):
         if self.menu.get_pressed('join'):
-            pass
+            name = self.menu.get_text('your player name').strip()
+            team = self.menu.get_text('team you want to join').strip()
+
+            # error with the chosen name
+            if name in self.session_info['names']:
+                if not self.name_taken:
+                    self.menu.add_content(menu.Text('name taken', 'the player name is already taken', (169, 59, 59)))
+                    self.name_taken = True
+            elif self.name_taken:
+                self.menu.remove_content('name taken')
+                self.name_taken = False
+
+            if name == '':
+                if not self.name_empty:
+                    self.menu.add_content(menu.Text('name empty', 'please enter you player name', (169, 59, 59)))
+                    self.name_empty = True
+            elif self.name_empty:
+                self.menu.remove_content('name empty')
+                self.name_empty = False
+
+            if len(name) > 15:
+                if not self.name_long:
+                    self.menu.add_content(menu.Text('name long', 'your player name is to long (max: 15)', (169, 59, 59)))
+                    self.name_long = True
+            elif self.name_long:
+                self.menu.remove_content('name long')
+                self.name_long = False
+
+            # error with the chosen team
+            if team == '':
+                if not self.team_empty:
+                    self.menu.add_content(menu.Text('team empty', 'please enter you player team', (169, 59, 59)))
+                    self.team_empty = True
+            elif self.team_empty:
+                self.menu.remove_content('team empty')
+                self.team_empty = False
+
+            if team not in self.session_info['teams']:
+                if not self.team_not_in_teams:
+                    self.menu.add_content(menu.Text('team not in teams', 'the team you try to join does not exist', (169, 59, 59)))
+                    self.team_not_in_teams = True
+            elif self.team_not_in_teams:
+                self.menu.remove_content('team not in teams')
+                self.team_not_in_teams = False
+
+            if not any([self.name_empty, self.name_long, self.name_taken, self.team_empty, self.team_not_in_teams]):
+                client_info = {
+                    'name': name,
+                    'team': team
+                }
+                self.next_scene = ClientScene(self.address, client_info)
 
     def handle_input(self, input):
         for event in input:
