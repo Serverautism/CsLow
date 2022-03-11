@@ -497,6 +497,8 @@ class MainMenuScene(MenuScene):
 
         self.host_port_error = False
         self.host_connect_error = False
+        self.join_port_error = False
+        self.join_connect_error = False
 
         self.menu = menu.Menu('center', (100, 50), 'MAIN MENU', self.menu_content)
 
@@ -520,16 +522,16 @@ class MainMenuScene(MenuScene):
     def handle_menu_actions(self):
         if self.menu.get_pressed('join'):
             if self.join_clicked == 1:
+                self.join_clicked += 1
                 threading.Thread(target=self.test_join).start()
             else:
+                self.join_clicked += 1
                 if self.host_clicked == 0:
                     self.menu.add_content(menu.Input('ip', self.input_image.get_rect(), image=self.input_image), 1)
                     self.menu.add_content(menu.Input('port', self.input_image.get_rect(), image=self.input_image), 2)
                 else:
                     self.menu.add_content(menu.Input('ip', self.input_image.get_rect(), image=self.input_image), 2)
                     self.menu.add_content(menu.Input('port', self.input_image.get_rect(), image=self.input_image), 3)
-
-            self.join_clicked += 1
 
         elif self.menu.get_pressed('host'):
             if self.host_clicked == 1:
@@ -590,11 +592,27 @@ class MainMenuScene(MenuScene):
             print('port not an int')
             # print(e)
             self.join_clicked = 1
+            
+            if self.join_connect_error:
+                self.menu.remove_content('join connect warning')
+                self.join_connect_error = False
+
+            if not self.join_port_error:
+                self.menu.add_content(menu.Text('join port warning', 'seems like the port is not a number', (169, 59, 59)))
+                self.join_port_error = True
 
         except OSError as e:
             print('not a valid game session?')
             # print(e)
             self.join_clicked = 1
+            
+            if self.join_port_error:
+                self.menu.remove_content('join port warning')
+                self.join_port_error = False
+
+            if not self.join_connect_error:
+                self.menu.add_content(menu.Text('join connect warning', 'no such game session found', (169, 59, 59)))
+                self.join_connect_error = True
 
         else:
             print('found game session')
