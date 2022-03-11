@@ -29,8 +29,8 @@ class RemotePlayer:
         self.hearts = 3
 
         self.knife_frames = load_animation('data/sprites/animations/knife_', 2)
-        self.pistol_frames = load_animation('data/sprites/animations2/pistol_', 2)
-        self.rifle_frames = load_animation('data/sprites/animations2/rifle_', 2)
+        self.pistol_frames = load_animation('data/sprites/animations/pistol_', 2)
+        self.rifle_frames = load_animation('data/sprites/animations/rifle_', 2)
 
         self.image = self.pistol_frames[0]
         self.rect = self.image.get_rect(center=self.center)
@@ -117,8 +117,8 @@ class Player:
         self.dy = 0
 
         self.knife_frames = load_animation('data/sprites/animations/knife_', 2)
-        self.pistol_frames = load_animation('data/sprites/animations2/pistol_', 2)
-        self.rifle_frames = load_animation('data/sprites/animations2/rifle_', 2)
+        self.pistol_frames = load_animation('data/sprites/animations/pistol_', 2)
+        self.rifle_frames = load_animation('data/sprites/animations/rifle_', 2)
 
         self.frame = 0
 
