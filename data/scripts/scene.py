@@ -1,6 +1,19 @@
-import pygame, threading, json, random, time
+import pygame, threading, json, random, logging
 from . import player, map, shadow_caster, hud, menu
 from socket import AF_INET, socket, SOCK_STREAM
+
+
+logging.basicConfig(
+    filename='test.log',
+    filemode='w',
+    format='%(asctime)s %(levelname)s: %(message)s',
+    datefmt='%d.%m.%y %H:%M:%S',
+    level=logging.DEBUG
+)
+
+
+def log(message):
+    logging.debug(f'{message}')
 
 
 class MainScene:
@@ -169,7 +182,7 @@ class HostScene(MainScene):
         while True:
             try:
                 client, client_address = self.server.accept()
-                print(f'{client_address[0]}:{client_address[1]} has connected')
+                log(f'{client_address[0]}:{client_address[1]} has connected')
                 self.addresses[client] = client_address
 
                 threading.Thread(target=self.handle_client, args=(client,)).start()
@@ -194,8 +207,9 @@ class HostScene(MainScene):
         client.send(bytes(info, 'utf8'))
 
         client_session_info = client.recv(self.buffer_size).decode('utf8')
-        if client_session_info == 'ping':
-            print(f'got ping request from {self.addresses[client]}')
+
+        if client_session_info == 'ping' or client_session_info == '':
+            log(f'got ping request from {self.addresses[client]}')
             del self.addresses[client]
             client.close()
             return
@@ -229,7 +243,7 @@ class HostScene(MainScene):
 
                     if 'damage' in client_info:
                         self.broadcast(dict)
-
+                        log('got damage message fom player')
                         for one_damage in client_info['damage']:
                             enemy, bullet, damage, victim = one_damage
                             if enemy == 0:
@@ -245,23 +259,24 @@ class HostScene(MainScene):
                     del self.clients[client]
                     disconnection_info = {'disconnect': client_index_whole_list}
                     self.broadcast(self.build_message(disconnection_info))
-                    print(f'{self.addresses[client]} disconnected')
+                    log(f'{self.addresses[client]} disconnected')
                     break
 
             except json.JSONDecodeError as e:
-                print(f'Error receiving data from {self.addresses[client]}:')
-                #print(e)
+                log(f'Error receiving data from {self.addresses[client]}')
+                log(dict)
+                log(e)
                 pass
 
             except OSError as e:
-                print('connection failed')
-                #print(e)
+                log('connection failed')
+                #log(e)
                 self.player_list.pop(client_index)
                 client.close()
                 del self.clients[client]
                 disconnection_info = {'disconnect': client_index_whole_list}
                 self.broadcast(self.build_message(disconnection_info))
-                print(f'{self.addresses[client]} lost connection')
+                log(f'{self.addresses[client]} lost connection')
                 break
 
     def build_message(self, message: dict):
@@ -274,12 +289,12 @@ class HostScene(MainScene):
                 sock.send(message_bytes)
 
         except OSError as e:
-            print('error broadcasting to one client')
-            print(e)
+            log('error broadcasting to one client')
+            log(e)
 
         except RuntimeError as e:
-            print('deleted client while broadcasting')
-            print(e)
+            log('deleted client while broadcasting')
+            log(e)
 
     def stop(self):
         for sock in self.clients:
@@ -410,7 +425,9 @@ class ClientScene(MainScene):
 
                     # handle hit
                     if 'damage' in info_from_server:
+                        log('got damage message from server')
                         for one_damage in info_from_server['damage']:
+                            log('containing damage')
                             enemy, bullet, damage, victim = one_damage
                             if enemy == self.own_index:
                                 self.player.bullets.pop(bullet)
@@ -423,12 +440,13 @@ class ClientScene(MainScene):
                                 self.player_list[victim].hearts -= damage
 
             except json.JSONDecodeError as e:
-                print('Error receiving data from server:')
-                #print(e)
+                log('Error receiving data from server:')
+                log(dict)
+                log(e)
                 pass
 
             except OSError:
-                print('connection failed')
+                log('connection failed')
                 break
 
     def send(self, message):
@@ -550,8 +568,8 @@ class MainMenuScene(MenuScene):
             test_server.close()
 
         except ValueError as e:
-            print('host port not an int')
-            # print(e)
+            log('host port not an int')
+            # log(e)
             self.host_clicked = 1
 
             if self.host_connect_error:
@@ -563,8 +581,8 @@ class MainMenuScene(MenuScene):
                 self.host_port_error = True
 
         except OSError as e:
-            print('port not valid')
-            # print(e)
+            log('port not valid')
+            # log(e)
             self.host_clicked = 1
 
             if self.host_port_error:
@@ -576,7 +594,7 @@ class MainMenuScene(MenuScene):
                 self.host_connect_error = True
 
         else:
-            print('creating new session')
+            log('creating new session')
             self.next_scene = CreateHostScene(int(self.menu.get_text('host port')))
 
     def test_join(self):
@@ -589,10 +607,10 @@ class MainMenuScene(MenuScene):
             test_socket.close()
 
         except ValueError as e:
-            print('port not an int')
-            # print(e)
+            log('port not an int')
+            # log(e)
             self.join_clicked = 1
-            
+
             if self.join_connect_error:
                 self.menu.remove_content('join connect warning')
                 self.join_connect_error = False
@@ -602,10 +620,10 @@ class MainMenuScene(MenuScene):
                 self.join_port_error = True
 
         except OSError as e:
-            print('not a valid game session?')
-            # print(e)
+            log('not a valid game session?')
+            # log(e)
             self.join_clicked = 1
-            
+
             if self.join_port_error:
                 self.menu.remove_content('join port warning')
                 self.join_port_error = False
@@ -615,7 +633,7 @@ class MainMenuScene(MenuScene):
                 self.join_connect_error = True
 
         else:
-            print('found game session')
+            log('found game session')
             self.next_scene = CreateJoinScene(test_address, session_info)
 
     def handle_input(self, input):
@@ -675,7 +693,7 @@ class CreateHostScene(MenuScene):
             teams = [t.strip() for t in self.menu.get_text('team name 1, team name 2').split(',')]
             own_team = self.menu.get_text('team you want to join').strip()
 
-            print(teams)
+            log(teams)
 
             # name is empty or to long
             if name == '':
