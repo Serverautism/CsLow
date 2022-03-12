@@ -161,7 +161,7 @@ class HostScene(MainScene):
         self.hud.update()
 
         info = {
-            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame, self.player.get_new_bullets(), self.player.team]] + [[p.center, p.rotation, p.active_weapon, p.frame, p.get_new_bullets(), p.team] for p in self.player_list]
+            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame, self.player.get_new_bullets(), self.player.team, self.player.hearts]] + [[p.center, p.rotation, p.active_weapon, p.frame, p.get_new_bullets(), p.team, p.hearts] for p in self.player_list]
         }
         self.broadcast(self.build_message(info))
 
@@ -200,7 +200,7 @@ class HostScene(MainScene):
             'map': self.map_path,
             'message_splitter': self.message_splitter,
             'own_index': client_index_whole_list,
-            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame, self.player.team]] + [[p.center, p.rotation, p.active_weapon, p.frame, p.team] for p in self.player_list]
+            'players': [[self.player.center, self.player.rotation, self.player.active_weapon, self.player.frame, self.player.team, self.player.hearts]] + [[p.center, p.rotation, p.active_weapon, p.frame, p.team, p.hearts] for p in self.player_list]
         }
 
         info = json.dumps(info)
