@@ -4,7 +4,7 @@ from socket import AF_INET, socket, SOCK_STREAM
 
 
 logging.basicConfig(
-    filename='test.log',
+    filename='data/logs/session.log',
     filemode='w',
     format='%(asctime)s %(levelname)s: %(message)s',
     datefmt='%d.%m.%y %H:%M:%S',
@@ -561,7 +561,7 @@ class MainMenuScene(MenuScene):
 
     def test_host(self):
         try:
-            test_address = ('', int(self.menu.get_text('host port')))
+            test_address = ('', int(self.menu.get_text('host port').strip()))
             test_server = socket(AF_INET, SOCK_STREAM)
             test_server.bind(test_address)
             test_server.listen()
@@ -599,7 +599,7 @@ class MainMenuScene(MenuScene):
 
     def test_join(self):
         try:
-            test_address = (self.menu.get_text('ip'), int(self.menu.get_text('port')))
+            test_address = (self.menu.get_text('ip').strip(), int(self.menu.get_text('port').strip()))
             test_socket = socket(AF_INET, SOCK_STREAM)
             test_socket.connect(test_address)
             session_info = json.loads(test_socket.recv(1024).decode('utf8'))
