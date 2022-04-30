@@ -1,10 +1,11 @@
 import pygame, threading, json, random, logging
 from . import player, map, shadow_caster, hud, menu
 from socket import AF_INET, socket, SOCK_STREAM
+import os
 
 
 logging.basicConfig(
-    filename='data/logs/session.log',
+    filename=os.path.join("data", "logs", "session.log"),
     filemode='w',
     format='%(asctime)s %(levelname)s: %(message)s',
     datefmt='%d.%m.%y %H:%M:%S',
