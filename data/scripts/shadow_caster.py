@@ -1,7 +1,7 @@
 import pygame
 from scipy import spatial
-from shapely import geometry
-import threading
+from shapely import geometry, ops
+from threading import Thread
 
 
 class Shadow:
@@ -35,16 +35,20 @@ class ShadowCaster:
             self.last_player_center = (int(self.player.center[0]), int(self.player.center[1]))
             self.render_surface.fill(self.colors['black'])
 
+            for wall in self.map.inside_walls:
+                nearest_point = list(ops.nearest_points(geometry.Point(self.player.center), wall.shapely)[1].coords)[0]
+                wall.distance = round(((nearest_point[0] - self.player.center[0]) ** 2 + (nearest_point[1] - self.player.center[1]) ** 2) ** .5, 2)
+
             wall_shadows = []
 
-            for wall in self.map.inside_walls:
+            for wall in sorted(self.map.inside_walls, key=lambda x: x.distance):
                 allpoints = []
 
                 new_points = []
 
                 skip = False
                 for finished_shadow in wall_shadows:
-                    if finished_shadow.shapely.contains(geometry.Polygon(wall.corners)):
+                    if finished_shadow.shapely.contains(wall.shapely):
                         skip = True
                         break
 
@@ -140,6 +144,7 @@ class ShadowCaster:
 
                 shadow_rect = pygame.Rect(x, y, width, height)
                 wall_shadows.append(Shadow(shadow_rect, shadow_shape))
+
                 pygame.draw.polygon(self.render_surface, self.colors['shadows'], shadow_shape)
 
     def render(self, surface):

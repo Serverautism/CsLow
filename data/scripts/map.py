@@ -1,5 +1,6 @@
 import pygame
 import csv
+from shapely import geometry
 
 
 class Tile:
@@ -25,8 +26,11 @@ class Wall:
             width = 32 * len(self.tiles)
             height = 32
 
+        self.distance = 0
+
         self.rect = pygame.Rect(x, y, width, height)
         self.corners = [self.rect.topleft, self.rect.topright, self.rect.bottomright, self.rect.bottomleft]
+        self.shapely = geometry.Polygon(self.corners)
 
         self.image = pygame.Surface((width, height))
         for i, tile in enumerate(self.tiles):
